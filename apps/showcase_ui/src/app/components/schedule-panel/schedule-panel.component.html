@@ -1,0 +1,197 @@
+<div class="schedule-panel">
+  @if (done()) {
+    <div class="success-state">
+      <span class="material-symbols-outlined success-icon">check_circle</span>
+      <div class="success-body">
+        <strong>{{ created().length === 1 ? 'Schedule saved' : created().length + ' schedules saved' }}</strong>
+        @for (s of created(); track s.id) {
+          <span class="success-line">
+            Next run {{ s.next_run ? formatRunTime(s.next_run) : 'not found in the next year' }}
+          </span>
+        }
+        <span class="success-hint">The phone is woken and unlocked (swipe or no lock) just before each run.</span>
+      </div>
+      <div class="success-actions">
+        <button type="button" class="btn-secondary" (click)="scheduleAnother()">Schedule another</button>
+        <button type="button" class="btn-primary" (click)="viewSchedules.emit()">
+          <span class="material-symbols-outlined">event_repeat</span><span>View schedules</span>
+        </button>
+      </div>
+    </div>
+  } @else {
+    <div class="panel-header">
+      <span class="material-symbols-outlined header-icon">schedule</span>
+      <span class="panel-title">Schedule this task</span>
+      <span class="panel-sub">Runs on {{ profile() === 'pro' ? 'Pro' : 'Flash' }} with the options set above</span>
+    </div>
+
+    @if (!rawMode()) {
+      <div class="field">
+        <span class="field-label">Repeat</span>
+        <div class="chip-row" role="radiogroup" aria-label="Repeat">
+          @for (m of repeatModes; track m.id) {
+            <button
+              type="button"
+              class="chip"
+              role="radio"
+              [attr.aria-checked]="repeat() === m.id"
+              [class.active]="repeat() === m.id"
+              (click)="setRepeat(m.id)"
+            >{{ m.label }}</button>
+          }
+        </div>
+      </div>
+
+      @if (repeat() === 'custom') {
+        <div class="field">
+          <span class="field-label">Days</span>
+          <div class="chip-row">
+            @for (d of dayChips; track d.dow) {
+              <button
+                type="button"
+                class="chip chip-day"
+                [attr.aria-pressed]="days().includes(d.dow)"
+                [class.active]="days().includes(d.dow)"
+                (click)="toggleDay(d.dow)"
+              >{{ d.label }}</button>
+            }
+          </div>
+        </div>
+      }
+
+      @if (repeat() === 'interval') {
+        <div class="field">
+          <span class="field-label">Every</span>
+          <div class="inline-row">
+            <input
+              type="number"
+              class="text-input num-input"
+              min="5"
+              max="720"
+              step="5"
+              aria-label="Minutes between runs"
+              [ngModel]="intervalMinutes()"
+              (ngModelChange)="intervalMinutes.set(+$event)"
+            />
+            <span class="unit">minutes</span>
+            <label class="check-label">
+              <input type="checkbox" [ngModel]="limitHours()" (ngModelChange)="limitHours.set($event)" />
+              <span>Only between</span>
+            </label>
+            @if (limitHours()) {
+              <input
+                type="number"
+                class="text-input num-input"
+                min="0"
+                max="23"
+                aria-label="From hour"
+                [ngModel]="fromHour()"
+                (ngModelChange)="fromHour.set(+$event)"
+              />
+              <span class="unit">and</span>
+              <input
+                type="number"
+                class="text-input num-input"
+                min="0"
+                max="23"
+                aria-label="To hour"
+                [ngModel]="toHour()"
+                (ngModelChange)="toHour.set(+$event)"
+              />
+              <span class="unit">o'clock</span>
+            }
+          </div>
+        </div>
+      } @else {
+        <div class="field">
+          <span class="field-label">At</span>
+          <div class="time-list">
+            @for (t of times(); track $index) {
+              <div class="time-row">
+                <input
+                  type="time"
+                  class="text-input"
+                  aria-label="Time of day"
+                  [ngModel]="t"
+                  (ngModelChange)="setTime($index, $event)"
+                />
+                @if (times().length > 1) {
+                  <button type="button" class="icon-btn" title="Remove this time" aria-label="Remove this time" (click)="removeTime($index)">
+                    <span class="material-symbols-outlined">close</span>
+                  </button>
+                }
+              </div>
+            }
+            <button type="button" class="btn-link" (click)="addTime()">
+              <span class="material-symbols-outlined">add</span><span>Add time</span>
+            </button>
+          </div>
+        </div>
+      }
+    }
+
+    <div class="advanced">
+      <button type="button" class="btn-link" [attr.aria-expanded]="advancedOpen()" (click)="advancedOpen.set(!advancedOpen())">
+        <span class="material-symbols-outlined">{{ advancedOpen() ? 'expand_more' : 'chevron_right' }}</span>
+        <span>Advanced: cron</span>
+      </button>
+      @if (advancedOpen()) {
+        <div class="advanced-body">
+          @if (rawMode()) {
+            <input
+              type="text"
+              class="text-input mono"
+              placeholder="0 9 * * 1-5"
+              spellcheck="false"
+              aria-label="Cron expression"
+              [ngModel]="rawCron()"
+              (ngModelChange)="rawCron.set($event)"
+            />
+            <span class="hint">minute hour day-of-month month day-of-week, local time</span>
+          } @else {
+            @for (c of crons(); track c) {
+              <code class="cron-code">{{ c }}</code>
+            } @empty {
+              <span class="hint">Complete the schedule above to see its cron.</span>
+            }
+          }
+          <button type="button" class="btn-link" (click)="toggleRaw()">
+            {{ rawMode() ? 'Back to the picker' : 'Type a raw cron instead' }}
+          </button>
+        </div>
+      }
+    </div>
+
+    @if (problem() && !(rawMode() && !rawCron().trim())) {
+      <div class="error-banner">
+        <span class="material-symbols-outlined error-icon">error</span>
+        <span>{{ problem() }}</span>
+      </div>
+    }
+
+    @if (error()) {
+      <div class="error-banner">
+        <span class="material-symbols-outlined error-icon">error</span>
+        <span>{{ error() }}</span>
+      </div>
+    }
+
+    <div class="panel-footer">
+      <p class="summary">
+        @if (summary()) {
+          {{ summary() }}
+          @if (crons().length > 1) { <span class="hint">Saved as {{ crons().length }} schedules.</span> }
+        } @else {
+          <span class="hint">Next run is shown after saving.</span>
+        }
+      </p>
+      <button type="button" class="btn-primary" [disabled]="!canSave()" (click)="save()">
+        @if (saving()) {
+          <span class="spinner"></span><span>Saving...</span>
+        } @else {
+          <span class="material-symbols-outlined">event_available</span><span>Save schedule</span>
+        }
+      </button>
+    </div>
+  }
+</div>

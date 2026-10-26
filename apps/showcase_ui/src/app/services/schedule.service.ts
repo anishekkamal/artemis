@@ -14,28 +14,40 @@
  * limitations under the License.
  */
 
-import { Injectable, inject } from '@angular/core';
+import { Injectable, inject, signal } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
-import { Observable, map } from 'rxjs';
+import { Observable, map, tap } from 'rxjs';
 import { Schedule, ScheduleCreate } from '../core/models/schedule.model';
 
 @Injectable({ providedIn: 'root' })
 export class ScheduleService {
   private http = inject(HttpClient);
 
+  /** Last list fetched, shared by the tab badge and the schedules view. */
+  readonly items = signal<Schedule[]>([]);
+
   list(): Observable<Schedule[]> {
-    return this.http.get<{ schedules: Schedule[] }>('/api/schedules').pipe(map((r) => r.schedules));
+    return this.http.get<{ schedules: Schedule[] }>('/api/schedules').pipe(
+      map((r) => r.schedules),
+      tap((items) => this.items.set(items))
+    );
   }
 
   create(body: ScheduleCreate): Observable<Schedule> {
-    return this.http.post<Schedule>('/api/schedules', body);
+    return this.http
+      .post<Schedule>('/api/schedules', body)
+      .pipe(tap((s) => this.items.update((all) => [...all, s])));
   }
 
   setEnabled(id: string, enabled: boolean): Observable<Schedule> {
-    return this.http.patch<Schedule>(`/api/schedules/${id}`, { enabled });
+    return this.http
+      .patch<Schedule>(`/api/schedules/${id}`, { enabled })
+      .pipe(tap((s) => this.items.update((all) => all.map((x) => (x.id === id ? s : x)))));
   }
 
   remove(id: string): Observable<unknown> {
-    return this.http.delete(`/api/schedules/${id}`);
+    return this.http
+      .delete(`/api/schedules/${id}`)
+      .pipe(tap(() => this.items.update((all) => all.filter((x) => x.id !== id))));
   }
 }

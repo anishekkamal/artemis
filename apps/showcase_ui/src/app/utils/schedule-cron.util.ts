@@ -162,3 +162,11 @@ export function describeCron(cron: string): string | null {
   const times = sortedUnique(hours).map((h) => `${pad(h)}:${pad(Number(minute))}`);
   return `At ${joinList(times)}, ${when}`;
 }
+
+/** "Mon, Oct 26, 09:00" for a local ISO minute from the API. */
+export function formatRunTime(iso: string | null): string {
+  if (!iso) return '';
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return iso;
+  return d.toLocaleString([], { weekday: 'short', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+}

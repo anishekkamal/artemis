@@ -100,6 +100,7 @@ async def pick_folder():
     if process.returncode != 0:
         if _USER_CANCELED in err.decode(errors="replace"):
             return {"path": None}
-        raise HTTPException(status_code=500, detail=err.decode(errors="replace").strip())
+        detail = err.decode(errors="replace").strip() or "The folder picker closed unexpectedly"
+        raise HTTPException(status_code=500, detail=detail)
     chosen = out.decode().strip()
     return {"path": chosen.rstrip("/") or "/" if chosen else None}

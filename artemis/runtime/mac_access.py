@@ -28,6 +28,7 @@ from pathlib import Path
 import posixpath
 import shlex
 import subprocess
+import time
 from typing import Any
 
 from artemis.config import DB_PATH
@@ -308,8 +309,31 @@ def push_to_phone(
     if result.returncode != 0:
         detail = (result.stderr or result.stdout).strip()
         raise MacAccessError(f"Copy to the phone failed: {detail or 'adb returned an error'}")
+    if source.is_dir():
+        _stamp_name_order(device_id, groups)
     _scan_media(device_id, destination)
     return destination, len(files)
+
+
+def _stamp_name_order(device_id: str, groups: dict[str, list[Path]]) -> None:
+    """Gives each copied file a phone mtime one second older than the file before it.
+
+    adb push keeps the Mac mtimes, which are often identical, so gallery pickers that
+    sort newest first showed slides in a random order. After this, 01.png is newest
+    and a folder of slides appears in name order. Never fails the copy.
+    """
+    now = int(time.time())
+    commands = [
+        f"touch -m -d @{now - i} {shlex.quote(f'{phone_dir}/{f.name}')}"
+        for phone_dir, group in groups.items()
+        for i, f in enumerate(sorted(group, key=lambda f: f.name))
+    ]
+    for start in range(0, len(commands), 50):
+        try:
+            _run_adb(device_id, ["shell", " ; ".join(commands[start : start + 50])], 15)
+        except Exception as exc:  # pylint: disable=broad-exception-caught
+            logger.warning(f"Could not set file order on the phone: {exc}")
+            return
 
 
 def _scan_media(device_id: str, phone_path: str) -> None:

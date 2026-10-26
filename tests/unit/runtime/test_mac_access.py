@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import os
+from pathlib import Path
 import subprocess
 
 import pytest
@@ -196,7 +197,13 @@ def test_push_folder_keeps_structure_and_skips_hidden_and_escapes(tmp_path, adb,
             "/sdcard/Download/kit/x1/",
         ],
     ]
-    assert "scan_file --arg /sdcard/Download/kit" in adb.calls[3][-1]
+    stamp = adb.calls[3][-1]
+    assert stamp.index("/sdcard/Download/kit/top.md") >= 0
+    newest, older = stamp.split(" ; ")[0], stamp.split(" ; ")[1]
+    assert newest.endswith("/sdcard/Download/kit/top.md")
+    assert older.endswith("/sdcard/Download/kit/x1/01.png")
+    assert int(newest.split("@")[1].split()[0]) == int(older.split("@")[1].split()[0])
+    assert "scan_file --arg /sdcard/Download/kit" in adb.calls[4][-1]
 
     monkeypatch.setattr(m, "MAX_COPY_FILES", 1)
     with pytest.raises(m.MacAccessError, match="more than 1 files"):
@@ -281,3 +288,14 @@ def test_read_text_returns_contents_and_refuses_the_rest(share, monkeypatch):
     monkeypatch.setattr(m, "MAX_READ_BYTES", 1)
     with pytest.raises(m.MacAccessError, match="too big"):
         m.read_text(str(share / "a.txt"), roots)
+
+
+def test_stamp_makes_the_first_name_newest(adb, monkeypatch):
+    monkeypatch.setattr(m.time, "time", lambda: 1000)
+    group = [Path("/m/02.png"), Path("/m/01.png"), Path("/m/03.png")]
+    m._stamp_name_order("SER", {"/sdcard/Pictures/kit": group})
+    assert adb.calls[0][-1].split(" ; ") == [
+        "touch -m -d @1000 /sdcard/Pictures/kit/01.png",
+        "touch -m -d @999 /sdcard/Pictures/kit/02.png",
+        "touch -m -d @998 /sdcard/Pictures/kit/03.png",
+    ]

@@ -91,7 +91,7 @@ def test_list_files_on_a_file_is_refused(share):
 
 
 @pytest.mark.parametrize(
-    "folder", ["/data/local/tmp", "/sdcard/../data", "/sdcardx/Download", "Download", "/"]
+    "folder", ["/data/local/tmp", "/sdcard/../data", "/sdcardx/Download", "../data", "/"]
 )
 def test_phone_folder_rejects(folder):
     with pytest.raises(m.MacAccessError):
@@ -100,6 +100,7 @@ def test_phone_folder_rejects(folder):
 
 def test_phone_folder_normalizes():
     assert m._validate_phone_folder("/sdcard//Download/") == "/sdcard/Download"
+    assert m._validate_phone_folder("Documents") == "/sdcard/Documents"
     assert m._validate_phone_folder("/storage/emulated/0/Pictures") == (
         "/storage/emulated/0/Pictures"
     )

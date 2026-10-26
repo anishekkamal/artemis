@@ -94,8 +94,9 @@ class CopyToPhoneArgs(BaseModel):
     PhoneFolder: str = Field(
         default=mac_access.DEFAULT_PHONE_FOLDER,
         description=(
-            "Folder on the phone to copy into, under /sdcard/. Pictures and videos belong in"
-            " /sdcard/Pictures or /sdcard/DCIM, everything else in /sdcard/Download (default)."
+            "Folder on the phone to copy into, under /sdcard/; a bare name such as Documents"
+            " means /sdcard/Documents. Pictures and videos belong in /sdcard/Pictures or"
+            " /sdcard/DCIM, everything else in /sdcard/Download (default)."
         ),
     )
 

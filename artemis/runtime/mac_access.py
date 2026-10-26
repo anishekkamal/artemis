@@ -201,7 +201,7 @@ def list_files(path: str | None, roots: list[str], limit: int = 200) -> list[dic
 def _validate_phone_folder(folder: str) -> str:
     if ".." in folder.split("/"):
         raise MacAccessError("PhoneFolder must not contain '..'.")
-    normal = posixpath.normpath(folder)
+    normal = posixpath.normpath(posixpath.join("/sdcard", folder))
     if not any(normal == base or normal.startswith(base + "/") for base in _PHONE_ROOTS):
         raise MacAccessError(
             "PhoneFolder must be under /sdcard/ (for example /sdcard/Download or"

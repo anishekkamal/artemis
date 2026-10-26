@@ -30,6 +30,8 @@ from fastapi import HTTPException
 from pydantic import BaseModel
 
 from artemis.config import DB_PATH
+from artemis.runtime.awake_service import wake_and_dismiss_keyguard
+from artemis.runtime.device_pool import device_pool
 from third_party.mobile_use.utils.logger import get_logger
 
 try:
@@ -46,6 +48,10 @@ _RANGES = ((0, 59), (0, 23), (1, 31), (1, 12), (0, 7))
 _NAMES = ("minute", "hour", "day-of-month", "month", "day-of-week")
 
 Submit = Callable[[RunRequest], Awaitable[dict[str, Any]]]
+Wake = Callable[[str], None]
+
+# Lets the keyguard animation finish before the readiness probe in run_task.
+WAKE_SETTLE_SECONDS = 1.5
 
 
 def _parse_field(text: str, lo: int, hi: int, name: str) -> frozenset[int]:
@@ -115,7 +121,8 @@ class Schedule(BaseModel):
 
 
 class SchedulerService:
-    def __init__(self, path: Path | None = None):
+    def __init__(self, path: Path | None = None, wake: Wake = wake_and_dismiss_keyguard):
+        self._wake = wake
         self.path = path or DB_PATH.parent / "schedules.json"
         self._items: list[Schedule] = []
         try:
@@ -163,6 +170,29 @@ class SchedulerService:
         self._save()
         return True
 
+    def set_enabled(self, schedule_id: str, enabled: bool) -> Schedule | None:
+        for item in self._items:
+            if item.id == schedule_id:
+                item.enabled = enabled
+                self._save()
+                return item
+        return None
+
+    async def _wake_targets(self, item: Schedule) -> None:
+        try:
+            if item.device_serial:
+                serials = [item.device_serial]
+            else:
+                serials = [
+                    d.serial for d in await device_pool.list_devices_async() if d.state == "device"
+                ]
+            for serial in serials:
+                await asyncio.to_thread(self._wake, serial)
+            if serials:
+                await asyncio.sleep(WAKE_SETTLE_SECONDS)
+        except Exception:
+            logger.exception("Could not wake device before scheduled run")
+
     async def tick(self, now: datetime, submit: Submit) -> None:
         minute = now.replace(second=0, microsecond=0)
         key = minute.isoformat(timespec="minutes")
@@ -184,6 +214,7 @@ class SchedulerService:
                 item.last_error = "skipped: previous run still active"
                 continue
             item.last_error = None
+            await self._wake_targets(item)
             try:
                 response = await submit(
                     RunRequest(

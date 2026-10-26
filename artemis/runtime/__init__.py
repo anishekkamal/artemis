@@ -46,6 +46,7 @@ from artemis.runtime.awake_service import (
     screen_awake_service,
     shutdown_awake_service,
     start_awake_service,
+    wake_and_dismiss_keyguard,
 )
 from artemis.runtime.server_lifecycle import (
     clear_server_info,

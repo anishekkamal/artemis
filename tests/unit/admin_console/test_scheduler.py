@@ -21,6 +21,7 @@ from fastapi import HTTPException
 import pytest
 
 from apps.admin_console.core.state import state
+from apps.admin_console.services import scheduler_service as scheduler_module
 from apps.admin_console.services.scheduler_service import (
     SchedulerService,
     cron_matches,
@@ -84,10 +85,28 @@ class FakeSubmit:
         return self.response
 
 
+class Calls(list):
+    """One ordered log shared by the fake wake and the fake submit."""
+
+
 @pytest.fixture
-def svc(tmp_path, monkeypatch):
+def calls():
+    return Calls()
+
+
+@pytest.fixture
+def svc(tmp_path, monkeypatch, calls):
     monkeypatch.setattr(state, "queue_items", [])
-    return SchedulerService(tmp_path / "schedules.json")
+    monkeypatch.setattr(scheduler_module, "WAKE_SETTLE_SECONDS", 0)
+    return SchedulerService(tmp_path / "schedules.json", wake=lambda s: calls.append(("wake", s)))
+
+
+def logging_submit(calls):
+    async def submit(request):
+        calls.append(("submit", request.device_serial))
+        return {"status": "queued", "tasks": [{"session_id": "sid-1"}]}
+
+    return submit
 
 
 def saved(svc):
@@ -178,3 +197,72 @@ async def test_bad_cron_in_file_does_not_block_other_schedules(svc):
     await svc.tick(MON_0900, submit)
     assert [r.goal for r in submit.requests] == ["second"]
     assert "5 fields" in svc.list()[0].last_error
+
+
+@pytest.mark.asyncio
+async def test_wakes_schedule_serial_before_submit(svc, calls):
+    svc.add("* * * * *", "g", device_serial="SER1")
+    await svc.tick(MON_0900, logging_submit(calls))
+    assert calls == [("wake", "SER1"), ("submit", "SER1")]
+
+
+@pytest.mark.asyncio
+async def test_wakes_online_devices_when_no_serial(svc, calls, monkeypatch):
+    class Dev:
+        def __init__(self, serial, state):
+            self.serial, self.state = serial, state
+
+    class Pool:
+        async def list_devices_async(self):
+            return [
+                Dev("A", "device"),
+                Dev("B", "offline"),
+                Dev("C", "unauthorized"),
+                Dev("D", "device"),
+            ]
+
+    monkeypatch.setattr(scheduler_module, "device_pool", Pool())
+    svc.add("* * * * *", "g")
+    await svc.tick(MON_0900, logging_submit(calls))
+    assert calls == [("wake", "A"), ("wake", "D"), ("submit", None)]
+
+
+@pytest.mark.asyncio
+async def test_wake_failure_still_submits(tmp_path, monkeypatch, calls):
+    monkeypatch.setattr(state, "queue_items", [])
+    monkeypatch.setattr(scheduler_module, "WAKE_SETTLE_SECONDS", 0)
+
+    def boom(serial):
+        raise RuntimeError("adb gone")
+
+    svc = SchedulerService(tmp_path / "s.json", wake=boom)
+    svc.add("* * * * *", "g", device_serial="SER1")
+    await svc.tick(MON_0900, logging_submit(calls))
+    assert calls == [("submit", "SER1")]
+    assert svc.list()[0].last_error is None
+
+
+@pytest.mark.asyncio
+async def test_pause_skips_wake_and_submit_until_resumed(svc, calls):
+    item = svc.add("* * * * *", "g", device_serial="SER1")
+    assert svc.set_enabled(item.id, False).enabled is False
+    assert saved(svc)["enabled"] is False
+    await svc.tick(MON_0900, logging_submit(calls))
+    assert calls == []
+    svc.set_enabled(item.id, True)
+    await svc.tick(MON_0900.replace(minute=1), logging_submit(calls))
+    assert calls == [("wake", "SER1"), ("submit", "SER1")]
+
+
+@pytest.mark.asyncio
+async def test_overlap_skip_does_not_wake(svc, calls, monkeypatch):
+    svc.add("* * * * *", "g", device_serial="SER1")
+    await svc.tick(MON_0900, logging_submit(calls))
+    calls.clear()
+    monkeypatch.setattr(state, "queue_items", [{"session_id": "sid-1"}])
+    await svc.tick(MON_0900.replace(minute=1), logging_submit(calls))
+    assert calls == []
+
+
+def test_set_enabled_unknown_id(svc):
+    assert svc.set_enabled("nope", False) is None

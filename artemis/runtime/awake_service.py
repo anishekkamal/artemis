@@ -66,6 +66,16 @@ def _run_awake_adb_command(
         return None
 
 
+def wake_and_dismiss_keyguard(device_id: str) -> None:
+    """Wake the display and dismiss a non-secure keyguard. Never enters credentials."""
+    _run_awake_adb_command(
+        device_id, ["shell", "input", "keyevent", "KEYCODE_WAKEUP"], "wake display"
+    )
+    _run_awake_adb_command(
+        device_id, ["shell", "wm", "dismiss-keyguard"], "dismiss non-secure keyguard"
+    )
+
+
 def sanitize_device_state(device_id: str) -> None:
     """Sanitize Android device state by cleaning up orphan screenrecord or modal dialogs."""
     if not device_id:
@@ -104,11 +114,10 @@ def _configure_usb_stay_awake(device_id: str) -> str | None:
             "enable USB-scoped stay-awake policy",
             ["shell", "svc", "power", "stayon", "usb"],
         ),
-        ("wake display", ["shell", "input", "keyevent", "KEYCODE_WAKEUP"]),
-        ("dismiss non-secure keyguard", ["shell", "wm", "dismiss-keyguard"]),
     )
     for description, args in commands:
         _run_awake_adb_command(device_id, args, description)
+    wake_and_dismiss_keyguard(device_id)
 
     configured = _run_awake_adb_command(
         device_id,

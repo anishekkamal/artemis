@@ -97,12 +97,13 @@ class FakeProc:
         return self.returncode
 
 
-def _spawn(monkeypatch, proc):
+def _spawn(monkeypatch, *procs):
     seen = []
+    queue = list(procs)
 
     async def fake(*args, **kwargs):
         seen.append(args)
-        return proc
+        return queue.pop(0)
 
     monkeypatch.setattr(router_module.asyncio, "create_subprocess_exec", fake)
     monkeypatch.setattr(router_module.sys, "platform", "darwin")
@@ -114,7 +115,16 @@ async def test_pick_returns_path_without_trailing_slash(api, monkeypatch):
     seen = _spawn(monkeypatch, FakeProc(0, out=b"/Users/me/Pictures/\n"))
     res = await api[0].post("/api/mac-access/pick")
     assert res.json() == {"path": "/Users/me/Pictures"}
-    assert seen[0][0] == "osascript" and "choose folder" in seen[0][2]
+    assert seen[0][0] == "osascript" and "System Events" in " ".join(seen[0])
+    assert len(seen) == 1
+
+
+@pytest.mark.asyncio
+async def test_pick_falls_back_to_plain_dialog_when_system_events_is_not_allowed(api, monkeypatch):
+    denied = FakeProc(1, err=b"Not authorized to send Apple events to System Events. (-1743)")
+    seen = _spawn(monkeypatch, denied, FakeProc(0, out=b"/Users/me/Pictures\n"))
+    assert (await api[0].post("/api/mac-access/pick")).json() == {"path": "/Users/me/Pictures"}
+    assert "System Events" not in " ".join(seen[1])
 
 
 @pytest.mark.asyncio

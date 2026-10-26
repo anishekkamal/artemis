@@ -26,9 +26,17 @@ from artemis.runtime.mac_access import MacAccessError
 router = APIRouter(tags=["mac-access"])
 
 PICK_TIMEOUT_SECONDS = 300
-_PICKER_SCRIPT = 'POSIX path of (choose folder with prompt "Choose a folder Artemis can read")'
+_CHOOSE = 'POSIX path of (choose folder with prompt "Choose a folder Artemis can read")'
+# osascript itself is a background process, so its dialog opens behind the browser.
+# Asking System Events to show it brings it to the front.
+_PICKER_SCRIPTS = (
+    ["-e", 'tell application "System Events"', "-e", "activate", "-e", _CHOOSE, "-e", "end tell"],
+    ["-e", _CHOOSE],
+)
 # osascript reports a dismissed dialog as error -128 ("User canceled.").
 _USER_CANCELED = "-128"
+# Error -1743: macOS has not allowed this process to control System Events.
+_NOT_AUTHORIZED = "-1743"
 
 
 class PathRequest(BaseModel):
@@ -81,10 +89,24 @@ async def pick_folder():
     """Opens the macOS folder chooser on the Mac running Artemis and returns the choice."""
     if sys.platform != "darwin":
         raise HTTPException(status_code=501, detail="The folder picker only works on macOS")
+    for script in _PICKER_SCRIPTS:
+        code, out, err = await _run_picker(script)
+        if code == 0 or _NOT_AUTHORIZED not in err:
+            break
+    if code != 0:
+        if _USER_CANCELED in err:
+            return {"path": None}
+        raise HTTPException(
+            status_code=500, detail=err.strip() or "The folder picker closed unexpectedly"
+        )
+    chosen = out.strip()
+    return {"path": chosen.rstrip("/") or "/" if chosen else None}
+
+
+async def _run_picker(script: list[str]) -> tuple[int, str, str]:
     process = await asyncio.create_subprocess_exec(
         "osascript",
-        "-e",
-        _PICKER_SCRIPT,
+        *script,
         stdin=asyncio.subprocess.DEVNULL,
         stdout=asyncio.subprocess.PIPE,
         stderr=asyncio.subprocess.PIPE,
@@ -97,10 +119,4 @@ async def pick_folder():
         if process.returncode is None:
             process.kill()
             await process.wait()
-    if process.returncode != 0:
-        if _USER_CANCELED in err.decode(errors="replace"):
-            return {"path": None}
-        detail = err.decode(errors="replace").strip() or "The folder picker closed unexpectedly"
-        raise HTTPException(status_code=500, detail=detail)
-    chosen = out.decode().strip()
-    return {"path": chosen.rstrip("/") or "/" if chosen else None}
+    return process.returncode, out.decode(errors="replace"), err.decode(errors="replace")

@@ -190,8 +190,8 @@ class SchedulerService:
                 await asyncio.to_thread(self._wake, serial)
             if serials:
                 await asyncio.sleep(WAKE_SETTLE_SECONDS)
-        except Exception:
-            logger.exception("Could not wake device before scheduled run")
+        except Exception as exc:
+            logger.error(f"Could not wake device before scheduled run: {exc}")
 
     async def tick(self, now: datetime, submit: Submit) -> None:
         minute = now.replace(second=0, microsecond=0)
@@ -247,8 +247,8 @@ class SchedulerService:
                 pass
             try:
                 await self.tick(datetime.now(), submit)
-            except Exception:
-                logger.exception("Scheduler tick failed")
+            except Exception as exc:
+                logger.error(f"Scheduler tick failed: {exc}")
 
 
 scheduler_service = SchedulerService()

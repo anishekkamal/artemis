@@ -71,7 +71,7 @@ def list_schedules() -> None:
     """List registered schedules."""
     schedules = _call("GET", "/api/schedules")["schedules"]
     table = Table(title=f"Schedules ({len(schedules)})")
-    for column in ("ID", "Cron", "Goal", "Profile", "Last fired", "Last error"):
+    for column in ("ID", "Cron", "Goal", "Profile", "Status", "Last fired", "Last error"):
         table.add_column(column)
     for s in schedules:
         table.add_row(
@@ -79,6 +79,7 @@ def list_schedules() -> None:
             s["cron"],
             s["goal"],
             s["profile"],
+            "active" if s["enabled"] else "paused",
             (s["last_fired_minute"] or "-").replace("T", " "),
             s["last_error"] or "",
         )
@@ -90,3 +91,20 @@ def remove_schedule(schedule_id: Annotated[str, typer.Argument(help="Schedule id
     """Remove a schedule."""
     _call("DELETE", f"/api/schedules/{schedule_id}")
     console.print(f"[green]Removed {schedule_id}[/green]")
+
+
+def _set_enabled(schedule_id: str, enabled: bool) -> None:
+    _call("PATCH", f"/api/schedules/{schedule_id}", {"enabled": enabled})
+    console.print(f"[green]{'Resumed' if enabled else 'Paused'} {schedule_id}[/green]")
+
+
+@schedule_app.command("pause")
+def pause_schedule(schedule_id: Annotated[str, typer.Argument(help="Schedule id.")]) -> None:
+    """Pause a schedule without removing it."""
+    _set_enabled(schedule_id, False)
+
+
+@schedule_app.command("resume")
+def resume_schedule(schedule_id: Annotated[str, typer.Argument(help="Schedule id.")]) -> None:
+    """Resume a paused schedule."""
+    _set_enabled(schedule_id, True)

@@ -45,6 +45,18 @@ async def create_schedule(request: ScheduleRequest):
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 
+class ScheduleUpdate(BaseModel):
+    enabled: bool
+
+
+@router.patch("/api/schedules/{schedule_id}")
+async def update_schedule(schedule_id: str, update: ScheduleUpdate):
+    item = scheduler_service.set_enabled(schedule_id, update.enabled)
+    if item is None:
+        raise HTTPException(status_code=404, detail="Schedule not found")
+    return item.model_dump()
+
+
 @router.delete("/api/schedules/{schedule_id}")
 async def delete_schedule(schedule_id: str):
     if not scheduler_service.remove(schedule_id):

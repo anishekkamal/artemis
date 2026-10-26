@@ -37,6 +37,7 @@ from third_party.mobile_use.utils.logger import get_logger
 logger = get_logger(__name__)
 
 MAX_COPY_BYTES = 500 * 1024 * 1024
+MAX_COPY_FILES = 1000
 DEFAULT_PHONE_FOLDER = "/sdcard/Download"
 _PHONE_ROOTS = ("/sdcard", "/storage/emulated/0")
 _SCAN_TIMEOUT_SECONDS = 15
@@ -220,42 +221,81 @@ def _run_adb(device_id: str, args: list[str], timeout: float) -> subprocess.Comp
     )
 
 
+def _folder_files(folder: Path, roots: list[str]) -> dict[str, list[Path]]:
+    """Visible files under ``folder``, grouped by their sub-folder relative to it."""
+    groups: dict[str, list[Path]] = {}
+    count = 0
+    for dirpath, dirnames, filenames in os.walk(folder):
+        dirnames[:] = sorted(d for d in dirnames if not d.startswith("."))
+        for name in sorted(n for n in filenames if not n.startswith(".")):
+            try:
+                real = resolve_allowed(str(Path(dirpath, name)), roots)
+            except MacAccessError:
+                continue
+            if not real.is_file():
+                continue
+            count += 1
+            if count > MAX_COPY_FILES:
+                raise MacAccessError(
+                    f"{folder.name} has more than {MAX_COPY_FILES} files; copy a smaller folder."
+                )
+            rel = Path(dirpath).relative_to(folder).as_posix()
+            groups.setdefault(rel, []).append(real)
+    return groups
+
+
 def push_to_phone(
     device_id: str,
     mac_path: str,
     phone_folder: str = DEFAULT_PHONE_FOLDER,
     roots: list[str] | None = None,
-) -> str:
-    """Copies one shared file to the phone and returns its phone path. The Mac copy is untouched."""
-    source = resolve_allowed(mac_path, load_roots() if roots is None else roots)
-    if not source.is_file():
-        raise MacAccessError(f"Only files can be copied, not folders: {mac_path}")
-    size = source.stat().st_size
+) -> tuple[str, int]:
+    """Copies a shared file, or a folder with its sub-folders, to the phone.
+
+    Returns the phone path and the number of files copied. Hidden files are skipped and
+    the Mac copy is untouched.
+    """
+    roots = load_roots() if roots is None else roots
+    source = resolve_allowed(mac_path, roots)
+    folder = _validate_phone_folder(phone_folder)
+    destination = f"{folder}/{source.name}"
+    if source.is_dir():
+        groups = {
+            posixpath.normpath(f"{destination}/{rel}"): files
+            for rel, files in _folder_files(source, roots).items()
+        }
+        if not groups:
+            raise MacAccessError(f"Nothing to copy: {mac_path} has no visible files.")
+    else:
+        groups = {folder: [source]}
+    files = [f for group in groups.values() for f in group]
+    size = sum(f.stat().st_size for f in files)
     if size > MAX_COPY_BYTES:
         raise MacAccessError(
             f"{source.name} is {size // (1024 * 1024)} MB; the limit is"
             f" {MAX_COPY_BYTES // (1024 * 1024)} MB."
         )
-    folder = _validate_phone_folder(phone_folder)
-    destination = f"{folder}/{source.name}"
     # ponytail: fixed 2 MB/s floor for the timeout; USB 2 on a bad cable is the ceiling.
     timeout = 60 + size / (2 * 1024 * 1024)
     try:
-        made = _run_adb(device_id, ["shell", "mkdir", "-p", shlex.quote(folder)], 15)
-        pushed = (
-            _run_adb(device_id, ["push", str(source), destination], timeout)
-            if made.returncode == 0
-            else made
+        result = _run_adb(
+            device_id, ["shell", "mkdir", "-p", *(shlex.quote(d) for d in groups)], 15
         )
+        for phone_dir, group in groups.items():
+            if result.returncode != 0:
+                break
+            result = _run_adb(
+                device_id, ["push", *(str(f) for f in group), f"{phone_dir}/"], timeout
+            )
     except subprocess.TimeoutExpired as exc:
         raise MacAccessError(f"Copy to the phone timed out after {exc.timeout:.0f} s.") from exc
     except OSError as exc:
         raise MacAccessError(f"Could not run adb: {exc}") from exc
-    if pushed.returncode != 0:
-        detail = (pushed.stderr or pushed.stdout).strip()
+    if result.returncode != 0:
+        detail = (result.stderr or result.stdout).strip()
         raise MacAccessError(f"Copy to the phone failed: {detail or 'adb returned an error'}")
     _scan_media(device_id, destination)
-    return destination
+    return destination, len(files)
 
 
 def _scan_media(device_id: str, phone_path: str) -> None:

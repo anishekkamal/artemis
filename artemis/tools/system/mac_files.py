@@ -84,7 +84,11 @@ class CopyToPhoneArgs(BaseModel):
     """Arguments schema for copy_to_phone."""
 
     MacPath: str = Field(
-        ..., description="Absolute path of a file inside a shared Mac folder (not a folder)."
+        ...,
+        description=(
+            "Absolute path of a file or folder inside a shared Mac folder. A folder is copied"
+            " whole, sub-folders included, as a folder of the same name on the phone."
+        ),
     )
     PhoneFolder: str = Field(
         default=mac_access.DEFAULT_PHONE_FOLDER,
@@ -100,10 +104,11 @@ class CopyToPhoneTool(ArtemisTool):
         super().__init__(
             name="copy_to_phone",
             description=(
-                "[MAC] Copies one file from a shared Mac folder onto the phone and returns its"
-                " path on the phone, which Gallery and the Files app then show. Lands in"
-                " /sdcard/Download unless PhoneFolder says otherwise; an existing file of the"
-                " same name is overwritten. The Mac copy is left untouched. " + _READ_ONLY
+                "[MAC] Copies a file, or a whole folder, from a shared Mac folder onto the"
+                " phone in one call and returns its path on the phone, which Gallery and the"
+                " Files app then show. Lands in /sdcard/Download unless PhoneFolder says"
+                " otherwise; existing files of the same name are overwritten. The Mac copy is"
+                " left untouched. " + _READ_ONLY
             ),
             args_schema=CopyToPhoneArgs,
             category="system",
@@ -121,12 +126,13 @@ class CopyToPhoneTool(ArtemisTool):
         if not device_id:
             return "No phone is connected, so the file cannot be copied."
         try:
-            phone_path = await asyncio.to_thread(
+            phone_path, count = await asyncio.to_thread(
                 mac_access.push_to_phone, device_id, MacPath, PhoneFolder
             )
         except MacAccessError as exc:
             return str(exc)
-        return f"Copied to the phone: {phone_path}"
+        files = "1 file" if count == 1 else f"{count} files"
+        return f"Copied {files} to the phone: {phone_path}"
 
 
 list_mac_files = ListMacFilesTool()

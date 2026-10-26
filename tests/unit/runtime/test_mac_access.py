@@ -131,10 +131,10 @@ def adb(monkeypatch):
 
 def test_push_builds_adb_argv_and_scans(share, adb):
     out = m.push_to_phone("SER", str(share / "a.txt"), "/sdcard/Download/", [str(share)])
-    assert out == "/sdcard/Download/a.txt"
+    assert out == ("/sdcard/Download/a.txt", 1)
     src = str((share / "a.txt").resolve())
     assert adb.calls[0] == ["adb", "-s", "SER", "shell", "mkdir", "-p", "/sdcard/Download"]
-    assert adb.calls[1] == ["adb", "-s", "SER", "push", src, "/sdcard/Download/a.txt"]
+    assert adb.calls[1] == ["adb", "-s", "SER", "push", src, "/sdcard/Download/"]
     assert "scan_file --arg /sdcard/Download/a.txt" in adb.calls[2][-1]
     assert (share / "a.txt").read_text() == "hi"
 
@@ -147,17 +147,66 @@ def test_push_failure_is_reported(share, adb):
 
 def test_failed_scan_does_not_fail_copy(share, adb):
     adb.scan_raises = True
-    assert m.push_to_phone("SER", str(share / "a.txt"), roots=[str(share)]).endswith("/a.txt")
+    assert m.push_to_phone("SER", str(share / "a.txt"), roots=[str(share)])[0].endswith("/a.txt")
 
 
-def test_push_refuses_directory_hidden_and_oversize(share, adb, monkeypatch):
-    with pytest.raises(m.MacAccessError, match="Only files"):
-        m.push_to_phone("SER", str(share / "sub"), roots=[str(share)])
+def test_push_refuses_hidden_and_oversize(share, adb, monkeypatch):
     with pytest.raises(m.MacAccessError, match="Hidden"):
         m.push_to_phone("SER", str(share / ".secret"), roots=[str(share)])
     monkeypatch.setattr(m, "MAX_COPY_BYTES", 1)
     with pytest.raises(m.MacAccessError, match="limit"):
         m.push_to_phone("SER", str(share / "a.txt"), roots=[str(share)])
+    assert adb.calls == []
+
+
+def test_push_folder_keeps_structure_and_skips_hidden_and_escapes(tmp_path, adb, monkeypatch):
+    share = tmp_path / "share"
+    kit = share / "kit"
+    (kit / "x1").mkdir(parents=True)
+    (kit / ".git").mkdir()
+    (kit / "top.md").write_text("t")
+    (kit / ".DS_Store").write_text("junk")
+    (kit / "x1" / "01.png").write_text("png")
+    (kit / ".git" / "config").write_text("secret")
+    outside = tmp_path / "outside.txt"
+    outside.write_text("no")
+    (kit / "link.txt").symlink_to(outside)
+
+    assert m.push_to_phone("SER", str(kit), roots=[str(share)]) == ("/sdcard/Download/kit", 2)
+    assert adb.calls[0] == [
+        "adb",
+        "-s",
+        "SER",
+        "shell",
+        "mkdir",
+        "-p",
+        "/sdcard/Download/kit",
+        "/sdcard/Download/kit/x1",
+    ]
+    pushes = adb.calls[1:3]
+    assert pushes == [
+        ["adb", "-s", "SER", "push", str((kit / "top.md").resolve()), "/sdcard/Download/kit/"],
+        [
+            "adb",
+            "-s",
+            "SER",
+            "push",
+            str((kit / "x1" / "01.png").resolve()),
+            "/sdcard/Download/kit/x1/",
+        ],
+    ]
+    assert "scan_file --arg /sdcard/Download/kit" in adb.calls[3][-1]
+
+    monkeypatch.setattr(m, "MAX_COPY_FILES", 1)
+    with pytest.raises(m.MacAccessError, match="more than 1 files"):
+        m.push_to_phone("SER", str(kit), roots=[str(share)])
+
+
+def test_push_folder_with_only_hidden_files_is_refused(share, adb):
+    (share / "sub" / "b.png").unlink()
+    (share / "sub" / ".hidden").write_text("x")
+    with pytest.raises(m.MacAccessError, match="Nothing to copy"):
+        m.push_to_phone("SER", str(share / "sub"), roots=[str(share)])
     assert adb.calls == []
 
 

@@ -36,7 +36,7 @@ def pushes(monkeypatch):
 
     def fake_push(device_id, mac_path, phone_folder, roots=None):
         calls.append((device_id, mac_path, phone_folder))
-        return f"{phone_folder}/{mac_path.rsplit('/', 1)[-1]}"
+        return f"{phone_folder}/{mac_path.rsplit('/', 1)[-1]}", 1
 
     monkeypatch.setattr(mac_access, "push_to_phone", fake_push)
     return calls
@@ -62,7 +62,7 @@ async def test_list_errors_come_back_as_text(share, monkeypatch):
 @pytest.mark.asyncio
 async def test_copy_returns_phone_path_using_ctx_device(share, pushes):
     out = await copy_to_phone.execute(ctx=CTX, MacPath=str(share / "a.txt"))
-    assert out == "Copied to the phone: /sdcard/Download/a.txt"
+    assert out == "Copied 1 file to the phone: /sdcard/Download/a.txt"
     assert pushes == [("SER", str(share / "a.txt"), "/sdcard/Download")]
 
 

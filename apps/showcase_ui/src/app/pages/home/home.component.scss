@@ -387,9 +387,9 @@ $text-light: #94a3b8;
 
       .mode-tabs {
         display: grid;
-        grid-template-columns: 1fr 1fr;
+        grid-template-columns: 1fr 1fr 1fr;
         width: 100%;
-        max-width: 520px;
+        max-width: 720px;
         box-sizing: border-box;
         background: rgba(255, 255, 255, 0.72);
         backdrop-filter: blur(12px) saturate(180%);
@@ -463,6 +463,20 @@ $text-light: #94a3b8;
               color: #94a3b8;
               font-size: 15px;
             }
+          }
+
+          .tab-badge {
+            min-width: 18px;
+            height: 18px;
+            padding: 0 5px;
+            box-sizing: border-box;
+            border-radius: 9999px;
+            background: #1a73e8;
+            color: #ffffff;
+            font-size: 11px;
+            font-weight: 700;
+            line-height: 18px;
+            text-align: center;
           }
 
           .tab-label {
@@ -4146,6 +4160,42 @@ $text-light: #94a3b8;
               font-size: 11.5px;
               color: #94a3b8;
               font-variant-numeric: tabular-nums;
+            }
+
+            .btn-schedule-composer {
+              display: inline-flex;
+              align-items: center;
+              justify-content: center;
+              gap: 6px;
+              height: 38px;
+              padding: 0 16px;
+              background: #ffffff;
+              border: 1px solid #e2e8f0;
+              border-radius: 12px;
+              color: #475569;
+              font-family: inherit;
+              font-size: 13.5px;
+              font-weight: 700;
+              cursor: pointer;
+              letter-spacing: -0.01em;
+              transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+
+              .run-icon {
+                font-size: 18px;
+                line-height: 1;
+              }
+
+              &:hover:not(:disabled),
+              &.is-open {
+                background: $primary-light;
+                border-color: $primary-border;
+                color: $primary;
+              }
+
+              &:disabled {
+                opacity: 0.5;
+                cursor: not-allowed;
+              }
             }
 
             .btn-run-composer {

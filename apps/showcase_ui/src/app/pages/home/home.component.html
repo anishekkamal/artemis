@@ -66,6 +66,19 @@
           }
           <span class="tab-label">Launch Autonomous Task</span>
         </button>
+
+        <button
+          type="button"
+          class="mode-tab-btn"
+          [class.active]="activeTab() === 'schedules'"
+          (click)="setTab('schedules')"
+        >
+          <span class="material-symbols-outlined tab-icon">event_repeat</span>
+          <span class="tab-label">Scheduled Tasks</span>
+          @if (scheduleService.items().length > 0) {
+            <span class="tab-badge">{{ scheduleService.items().length }}</span>
+          }
+        </button>
       </div>
     </div>
 
@@ -1699,6 +1712,13 @@
       </section>
     }
 
+    @if (activeTab() === 'schedules') {
+      <app-scheduled-tasks
+        [isReady]="isReady()"
+        (openComposer)="setTab('launcher'); showSchedulePanel.set(false)"
+      />
+    }
+
     <!-- ========================================================================= -->
     <!-- VIEW 2: TASK EXECUTION LAUNCHER (UNIFIED SCULPTURED COMPOSER)            -->
     <!-- ========================================================================= -->
@@ -1815,6 +1835,18 @@
                 <span class="char-count">{{ taskGoal().length }} chars</span>
               }
 
+              <button
+                type="button"
+                class="btn-schedule-composer"
+                [class.is-open]="showSchedulePanel()"
+                [attr.aria-expanded]="showSchedulePanel()"
+                [disabled]="!taskGoal().trim() || isSubmitting()"
+                title="Run this task on a schedule. The phone does not need to be ready now."
+                (click)="showSchedulePanel.set(!showSchedulePanel())"
+              >
+                <span class="material-symbols-outlined run-icon">schedule</span><span>Schedule</span>
+              </button>
+
               <!-- Run Button -->
               <button
                 type="button"
@@ -1833,6 +1865,15 @@
             </div>
           </div>
         </div>
+
+        @if (showSchedulePanel() && taskGoal().trim()) {
+          <app-schedule-panel
+            [goal]="taskGoal()"
+            [profile]="selectedProfile()"
+            [options]="scheduleOptions()"
+            (viewSchedules)="showSchedulePanel.set(false); setTab('schedules')"
+          />
+        }
 
         <!-- Pro Mode Standalone Expected Output Card (Clean & Minimalist) -->
         @if (selectedProfile() === 'pro') {

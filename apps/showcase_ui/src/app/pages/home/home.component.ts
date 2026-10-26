@@ -19,6 +19,9 @@ import { FormsModule } from '@angular/forms';
 import { Router, RouterLink } from '@angular/router';
 import { AgentService } from '../../services/agent.service';
 import { SystemService } from '../../services/system.service';
+import { ScheduleService } from '../../services/schedule.service';
+import { SchedulePanelComponent, ScheduleRunOptions } from '../../components/schedule-panel/schedule-panel.component';
+import { ScheduledTasksComponent } from '../../components/scheduled-tasks/scheduled-tasks.component';
 import {
   AdbServerConnectionResult,
   AdbServerDevice,
@@ -103,7 +106,7 @@ type AdbGuideTab = 'emulator' | 'usb' | 'wifi' | 'remote';
 @Component({
   selector: 'app-home',
   standalone: true,
-  imports: [FormsModule],
+  imports: [FormsModule, SchedulePanelComponent, ScheduledTasksComponent],
   templateUrl: './home.component.html',
   changeDetection: ChangeDetectionStrategy.Eager,
   styleUrl: './home.component.scss'
@@ -112,10 +115,24 @@ export class HomeComponent implements OnInit, OnDestroy {
   public agentService = inject(AgentService);
   public systemService = inject(SystemService);
   public taskRecService = inject(TaskRecommendationService);
+  public scheduleService = inject(ScheduleService);
   private router = inject(Router);
 
-  // High-level navigation mode: 'diagnostics' (System Setup Guide) vs 'launcher' (Task Execution)
-  public activeTab = signal<'diagnostics' | 'launcher'>('launcher');
+  // High-level navigation mode: 'diagnostics' (System Setup Guide), 'launcher' (Task Execution), 'schedules'
+  public activeTab = signal<'diagnostics' | 'launcher' | 'schedules'>('launcher');
+
+  public showSchedulePanel = signal<boolean>(false);
+  /** The Pro options the composer would send to /api/run, saved with a schedule. */
+  public scheduleOptions = computed<ScheduleRunOptions>(() =>
+    this.selectedProfile() === 'pro'
+      ? {
+          expectedOutput: this.expectedOutput(),
+          enableOutputter: this.enableOutputter(),
+          verificationLevel: this.verificationLevel().id,
+          explorerMode: this.explorerMode().id
+        }
+      : {}
+  );
 
   // Interactive guide sub-tab inside the ADB section
   public activeAdbGuideTab = signal<AdbGuideTab>('emulator');
@@ -538,6 +555,7 @@ export class HomeComponent implements OnInit, OnDestroy {
   ngOnInit(): void {
 
     this.loadProTuningDefaults();
+    this.scheduleService.list().subscribe({ error: () => undefined });
     // Initial fetch of system readiness & model configuration
     this.systemService.fetchReadiness().subscribe();
     this.systemService.fetchModelConfigEnv().subscribe();
@@ -559,7 +577,7 @@ export class HomeComponent implements OnInit, OnDestroy {
     window.removeEventListener('focus', this.focusListener);
   }
 
-  public setTab(tab: 'diagnostics' | 'launcher'): void {
+  public setTab(tab: 'diagnostics' | 'launcher' | 'schedules'): void {
     this.activeTab.set(tab);
     if (tab === 'diagnostics') {
       this.systemService.fetchReadiness().subscribe();

@@ -1,0 +1,93 @@
+<section class="schedules-view">
+  @if (actionError()) {
+    <div class="error-banner">
+      <span class="material-symbols-outlined error-icon">error</span>
+      <span>{{ actionError() }}</span>
+    </div>
+  }
+
+  @if (!loaded()) {
+    <div class="empty-state"><span class="spinner-dark"></span></div>
+  } @else if (items().length === 0) {
+    <div class="empty-state">
+      <span class="material-symbols-outlined empty-icon">event_repeat</span>
+      <h3>No scheduled tasks yet</h3>
+      <p>
+        A schedule runs a task for you at set times, such as every weekday at 09:00. Artemis wakes the phone
+        first. Schedules fire only while this server is running.
+      </p>
+      <button type="button" class="btn-secondary" (click)="openComposer.emit()">
+        <span class="material-symbols-outlined">schedule</span><span>Write a task, then press Schedule</span>
+      </button>
+    </div>
+  } @else {
+    <ul class="schedule-list">
+      @for (s of items(); track s.id) {
+        <li class="schedule-card" [class.paused]="!s.enabled">
+          <div class="card-main">
+            <div class="card-top">
+              <span class="goal" [title]="s.goal">{{ s.goal }}</span>
+              <span class="chip" [class.chip-pro]="s.profile === 'pro'">
+                <span class="material-symbols-outlined">{{ s.profile === 'pro' ? 'psychology' : 'bolt' }}</span>
+                {{ s.profile === 'pro' ? 'Pro' : 'Flash' }}
+              </span>
+              <span class="chip" [class.chip-active]="s.enabled" [class.chip-paused]="!s.enabled">
+                {{ s.enabled ? 'Active' : 'Paused' }}
+              </span>
+            </div>
+            <div class="when">{{ describe(s) }}</div>
+            <div class="meta">
+              <span>
+                <span class="meta-label">Next run</span>
+                {{ s.enabled ? (s.next_run ? formatRunTime(s.next_run) : 'none in the next year') : 'paused' }}
+              </span>
+              <span>
+                <span class="meta-label">Last fired</span>
+                {{ s.last_fired_minute ? formatRunTime(s.last_fired_minute) : 'never' }}
+              </span>
+              <code class="cron" title="Cron expression">{{ s.cron }}</code>
+            </div>
+            @if (s.last_error) {
+              <div class="warn">
+                <span class="material-symbols-outlined">warning</span>
+                <span>{{ s.last_error }}</span>
+              </div>
+            }
+          </div>
+
+          <div class="card-actions">
+            @if (confirmDeleteId() === s.id) {
+              <span class="confirm-text">Delete this schedule?</span>
+              <button type="button" class="btn-danger" (click)="remove(s)">Delete</button>
+              <button type="button" class="btn-secondary" (click)="confirmDeleteId.set(null)">Cancel</button>
+            } @else {
+              <button
+                type="button"
+                class="btn-secondary"
+                [disabled]="!isReady() || busyId() === s.id"
+                [title]="isReady() ? 'Run this task now' : 'Complete System Setup before running'"
+                (click)="runNow(s)"
+              >
+                <span class="material-symbols-outlined">play_arrow</span><span>Run now</span>
+              </button>
+              <button type="button" class="btn-secondary" [disabled]="busyId() === s.id" (click)="toggle(s)">
+                <span class="material-symbols-outlined">{{ s.enabled ? 'pause' : 'play_circle' }}</span>
+                <span>{{ s.enabled ? 'Pause' : 'Resume' }}</span>
+              </button>
+              <button
+                type="button"
+                class="icon-btn"
+                title="Delete schedule"
+                aria-label="Delete schedule"
+                [disabled]="busyId() === s.id"
+                (click)="confirmDeleteId.set(s.id)"
+              >
+                <span class="material-symbols-outlined">delete</span>
+              </button>
+            }
+          </div>
+        </li>
+      }
+    </ul>
+  }
+</section>

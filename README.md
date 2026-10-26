@@ -109,10 +109,19 @@ cd artemis
 ```bash
 uv run artemis schedule add "0 9 * * *" "Open Settings and report battery level" --profile flash
 uv run artemis schedule list
+uv run artemis schedule pause <id>
+uv run artemis schedule resume <id>
 uv run artemis schedule remove <id>
 ```
 
-Schedules fire only while the Artemis server is running, runs missed while it was down are skipped, and the phone must be unlocked at fire time.
+Cron examples:
+
+```bash
+uv run artemis schedule add "0 9,18 * * 1-5" "Check my battery"   # 9:00 and 18:00 on weekdays
+uv run artemis schedule add "30 7 * * 0,6" "Check my battery"     # 7:30 on weekends
+```
+
+`pause` keeps a schedule but stops it firing until `resume`; `list` shows each one as `active` or `paused`. Schedules fire only while the Artemis server is running, and runs missed while it was down are skipped. Before each run Artemis wakes the phone and dismisses the lock screen, which works for a swipe or no lock. A PIN, pattern, or password lock still blocks the run, and the failure shows in `list` under Last error.
 
 <a id="mcp-setup"></a>
 <a id="mcp"></a>

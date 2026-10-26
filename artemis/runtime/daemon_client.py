@@ -265,6 +265,36 @@ def submit_task_to_daemon(
     return None
 
 
+def daemon_api_request(
+    method: str,
+    path: str,
+    payload: dict[str, Any] | None = None,
+    *,
+    base_url: str | None = None,
+    timeout: float = 5.0,
+) -> tuple[int, Any]:
+    """Call a Daemon REST route and return ``(status, json_body)``.
+
+    HTTP error statuses are returned, not raised, so callers can show the
+    server's ``detail``. Raises ``OSError`` when the Daemon cannot be reached.
+    """
+    url = f"{base_url or f'http://{DEFAULT_DAEMON_HOST}:{DEFAULT_DAEMON_PORT}'}{path}"
+    req = urllib.request.Request(
+        url,
+        data=json.dumps(payload).encode("utf-8") if payload is not None else None,
+        headers={"Content-Type": "application/json", "User-Agent": "Artemis-Client"},
+        method=method,
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=timeout) as response:
+            return response.status, json.loads(response.read().decode("utf-8"))
+    except urllib.error.HTTPError as exc:
+        try:
+            return exc.code, json.loads(exc.read().decode("utf-8"))
+        except ValueError:
+            return exc.code, {}
+
+
 def stop_task_on_daemon(
     session_id: str,
     *,

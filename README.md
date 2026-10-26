@@ -104,6 +104,16 @@ cd artemis
 
 > **Tip**: Opens `http://localhost:8000` in your default browser with a device connection wizard, live screen mirroring, prompt sandbox, and execution replays. You can also run directly from CLI: `uv run artemis run "Open Settings, find Battery and tell me current level" --profile flash`.
 
+**Scheduled runs.** Register a goal on a cron expression and the server enqueues it every time the cron matches:
+
+```bash
+uv run artemis schedule add "0 9 * * *" "Open Settings and report battery level" --profile flash
+uv run artemis schedule list
+uv run artemis schedule remove <id>
+```
+
+Schedules fire only while the Artemis server is running, runs missed while it was down are skipped, and the phone must be unlocked at fire time.
+
 <a id="mcp-setup"></a>
 <a id="mcp"></a>
 <details>

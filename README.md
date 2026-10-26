@@ -123,6 +123,8 @@ uv run artemis schedule add "30 7 * * 0,6" "Check my battery"     # 7:30 on week
 
 `pause` keeps a schedule but stops it firing until `resume`; `list` shows each one as `active` or `paused`. Schedules fire only while the Artemis server is running, and runs missed while it was down are skipped. Before each run Artemis wakes the phone and dismisses the lock screen, which works for a swipe or no lock. A PIN, pattern, or password lock still blocks the run, and the failure shows in `list` under Last error.
 
+**Mac folders.** To let a task use files from the Mac, add the folder in the portal's **Mac Folders** tab: type a path, or press **Browse…** to choose one in the macOS folder chooser. Then ask for it in a task, for example "Copy the Invoices folder from my Mac to the phone's Download folder". The agent can list these folders and copy a file or a whole folder to the phone over USB, into `/sdcard/Download` unless the task names another folder. It cannot change or delete anything on the Mac, cannot reach outside the shared folders, and skips hidden files such as `.env` or `.ssh`. One copy is limited to 1000 files and 500 MB.
+
 <a id="mcp-setup"></a>
 <a id="mcp"></a>
 <details>

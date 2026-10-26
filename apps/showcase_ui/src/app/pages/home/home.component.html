@@ -79,6 +79,19 @@
             <span class="tab-badge">{{ scheduleService.items().length }}</span>
           }
         </button>
+
+        <button
+          type="button"
+          class="mode-tab-btn"
+          [class.active]="activeTab() === 'folders'"
+          (click)="setTab('folders')"
+        >
+          <span class="material-symbols-outlined tab-icon">folder_shared</span>
+          <span class="tab-label">Mac Folders</span>
+          @if (macAccessService.roots().length > 0) {
+            <span class="tab-badge">{{ macAccessService.roots().length }}</span>
+          }
+        </button>
       </div>
     </div>
 
@@ -1710,6 +1723,10 @@
         }
 
       </section>
+    }
+
+    @if (activeTab() === 'folders') {
+      <app-mac-folders />
     }
 
     @if (activeTab() === 'schedules') {

@@ -22,6 +22,8 @@ import { SystemService } from '../../services/system.service';
 import { ScheduleService } from '../../services/schedule.service';
 import { SchedulePanelComponent, ScheduleRunOptions } from '../../components/schedule-panel/schedule-panel.component';
 import { ScheduledTasksComponent } from '../../components/scheduled-tasks/scheduled-tasks.component';
+import { MacFoldersComponent } from '../../components/mac-folders/mac-folders.component';
+import { MacAccessService } from '../../services/mac-access.service';
 import {
   AdbServerConnectionResult,
   AdbServerDevice,
@@ -106,7 +108,7 @@ type AdbGuideTab = 'emulator' | 'usb' | 'wifi' | 'remote';
 @Component({
   selector: 'app-home',
   standalone: true,
-  imports: [FormsModule, SchedulePanelComponent, ScheduledTasksComponent],
+  imports: [FormsModule, SchedulePanelComponent, ScheduledTasksComponent, MacFoldersComponent],
   templateUrl: './home.component.html',
   changeDetection: ChangeDetectionStrategy.Eager,
   styleUrl: './home.component.scss'
@@ -116,10 +118,11 @@ export class HomeComponent implements OnInit, OnDestroy {
   public systemService = inject(SystemService);
   public taskRecService = inject(TaskRecommendationService);
   public scheduleService = inject(ScheduleService);
+  public macAccessService = inject(MacAccessService);
   private router = inject(Router);
 
   // High-level navigation mode: 'diagnostics' (System Setup Guide), 'launcher' (Task Execution), 'schedules'
-  public activeTab = signal<'diagnostics' | 'launcher' | 'schedules'>('launcher');
+  public activeTab = signal<'diagnostics' | 'launcher' | 'schedules' | 'folders'>('launcher');
 
   public showSchedulePanel = signal<boolean>(false);
   /** The Pro options the composer would send to /api/run, saved with a schedule. */
@@ -556,6 +559,7 @@ export class HomeComponent implements OnInit, OnDestroy {
 
     this.loadProTuningDefaults();
     this.scheduleService.list().subscribe({ error: () => undefined });
+    this.macAccessService.list().subscribe({ error: () => undefined });
     // Initial fetch of system readiness & model configuration
     this.systemService.fetchReadiness().subscribe();
     this.systemService.fetchModelConfigEnv().subscribe();
@@ -577,7 +581,7 @@ export class HomeComponent implements OnInit, OnDestroy {
     window.removeEventListener('focus', this.focusListener);
   }
 
-  public setTab(tab: 'diagnostics' | 'launcher' | 'schedules'): void {
+  public setTab(tab: 'diagnostics' | 'launcher' | 'schedules' | 'folders'): void {
     this.activeTab.set(tab);
     if (tab === 'diagnostics') {
       this.systemService.fetchReadiness().subscribe();

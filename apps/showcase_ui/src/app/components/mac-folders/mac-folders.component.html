@@ -1,0 +1,88 @@
+<section class="folders-view">
+  <p class="explainer">
+    Artemis can read files in these folders and copy them to your phone. It never changes or deletes anything in
+    them, and hidden files are skipped.
+  </p>
+
+  @if (error()) {
+    <div class="error-banner" role="alert">
+      <span class="material-symbols-outlined error-icon">error</span>
+      <span>{{ error() }}</span>
+    </div>
+  }
+
+  @if (picking()) {
+    <div class="picker-note" role="status">
+      <span class="spinner-dark"></span><span>Waiting for folder picker on your Mac…</span>
+    </div>
+  }
+
+  @if (!loaded()) {
+    <div class="empty-state"><span class="spinner-dark"></span></div>
+  } @else if (roots().length === 0) {
+    <div class="empty-state">
+      <span class="material-symbols-outlined empty-icon">folder_shared</span>
+      <h3>No folders shared yet</h3>
+      <p>Add a folder below, then ask Artemis to send one of its files to your phone.</p>
+    </div>
+  } @else {
+    <ul class="folder-list">
+      @for (r of roots(); track r.path) {
+        <li class="folder-card">
+          <div class="card-main">
+            <span class="path" [title]="r.path">{{ r.path }}</span>
+            @if (!r.exists) {
+              <div class="warn">
+                <span class="material-symbols-outlined">warning</span>
+                <span>This folder no longer exists on your Mac.</span>
+              </div>
+            }
+          </div>
+          <div class="card-actions">
+            @if (confirmRemovePath() === r.path) {
+              <span class="confirm-text">Stop sharing this folder?</span>
+              <button type="button" class="btn-danger" (click)="remove(r)">Remove</button>
+              <button type="button" class="btn-secondary" (click)="confirmRemovePath.set(null)">Cancel</button>
+            } @else {
+              <button
+                type="button"
+                class="btn-secondary"
+                [disabled]="busy() || picking() !== null"
+                (click)="change(r)"
+              >
+                <span class="material-symbols-outlined">drive_file_move</span><span>Change</span>
+              </button>
+              <button
+                type="button"
+                class="btn-secondary"
+                [disabled]="busy() || picking() !== null"
+                (click)="confirmRemovePath.set(r.path)"
+              >
+                <span class="material-symbols-outlined">delete</span><span>Remove</span>
+              </button>
+            }
+          </div>
+        </li>
+      }
+    </ul>
+  }
+
+  <form class="add-row" (submit)="$event.preventDefault(); add()">
+    <input
+      type="text"
+      class="path-input"
+      placeholder="/Users/you/Pictures"
+      aria-label="Folder path on your Mac"
+      autocomplete="off"
+      spellcheck="false"
+      [value]="newPath()"
+      (input)="newPath.set($any($event.target).value)"
+    />
+    <button type="button" class="btn-secondary" [disabled]="busy() || picking() !== null" (click)="browseForNew()">
+      <span class="material-symbols-outlined">folder_open</span><span>Browse…</span>
+    </button>
+    <button type="submit" class="btn-primary" [disabled]="busy() || picking() !== null || !newPath().trim()">
+      <span class="material-symbols-outlined">add</span><span>Add</span>
+    </button>
+  </form>
+</section>

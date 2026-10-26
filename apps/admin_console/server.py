@@ -78,6 +78,7 @@ try:
     from admin_console.database.repositories.step_repository import step_repo
     from admin_console.database.repositories.trace_repository import trace_repo
     from admin_console.routers import (
+        mac_access,
         media,
         replay,
         schedules,
@@ -98,6 +99,7 @@ except ImportError:
     from apps.admin_console.core.state import state
     from apps.admin_console.database.repositories.session_repository import session_repo
     from apps.admin_console.routers import (
+        mac_access,
         media,
         replay,
         schedules,
@@ -253,6 +255,7 @@ app.include_router(sessions.router)
 app.include_router(steps.router)
 app.include_router(tasks.router)
 app.include_router(schedules.router)
+app.include_router(mac_access.router)
 app.include_router(replay.router)
 app.include_router(system.router)
 

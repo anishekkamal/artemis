@@ -80,6 +80,10 @@ def _save_roots(roots: list[str], store: Path | None) -> None:
     os.replace(tmp, path)
 
 
+def root_exists(path: str) -> bool:
+    return Path(path).expanduser().is_dir()
+
+
 def _as_folder(path: str) -> str:
     try:
         resolved = Path(path).expanduser().resolve(strict=True)

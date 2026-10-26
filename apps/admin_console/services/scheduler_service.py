@@ -23,7 +23,7 @@ from datetime import datetime
 import json
 import os
 from pathlib import Path
-from typing import Any
+from typing import Any, NamedTuple
 import uuid
 
 from fastapi import HTTPException
@@ -45,7 +45,6 @@ logger = get_logger(__name__)
 _RANGES = ((0, 59), (0, 23), (1, 31), (1, 12), (0, 7))
 _NAMES = ("minute", "hour", "day-of-month", "month", "day-of-week")
 
-Parsed = tuple[frozenset[int], ...]
 Submit = Callable[[RunRequest], Awaitable[dict[str, Any]]]
 
 
@@ -71,23 +70,33 @@ def _parse_field(text: str, lo: int, hi: int, name: str) -> frozenset[int]:
     return frozenset(values)
 
 
-def parse_cron(expr: str) -> Parsed:
+class Cron(NamedTuple):
+    minute: frozenset[int]
+    hour: frozenset[int]
+    dom: frozenset[int]
+    month: frozenset[int]
+    dow: frozenset[int]
+    dom_star: bool
+    dow_star: bool
+
+
+def parse_cron(expr: str) -> Cron:
     fields = expr.split()
     if len(fields) != 5:
         raise ValueError(f"Cron needs 5 fields (minute hour dom month dow), got {len(fields)}")
     parsed = [_parse_field(f, lo, hi, name) for f, (lo, hi), name in zip(fields, _RANGES, _NAMES)]
     parsed[4] = frozenset(v % 7 for v in parsed[4])
-    return tuple(parsed)
+    return Cron(*parsed, fields[2].startswith("*"), fields[4].startswith("*"))
 
 
-def cron_matches(parsed: Parsed, dt: datetime) -> bool:
-    minute, hour, dom, month, dow = parsed
-    if dt.minute not in minute or dt.hour not in hour or dt.month not in month:
+def cron_matches(cron: Cron, dt: datetime) -> bool:
+    if dt.minute not in cron.minute or dt.hour not in cron.hour or dt.month not in cron.month:
         return False
-    dom_ok = dt.day in dom
-    dow_ok = (dt.weekday() + 1) % 7 in dow
-    # Vixie semantics: both restricted means either may match.
-    if len(dom) < 31 and len(dow) < 7:
+    dom_ok = dt.day in cron.dom
+    dow_ok = (dt.weekday() + 1) % 7 in cron.dow
+    # Vixie semantics: a field starting with "*" is unrestricted; when both are
+    # restricted, either may match.
+    if not cron.dom_star and not cron.dow_star:
         return dom_ok or dow_ok
     return dom_ok and dow_ok
 
@@ -113,6 +122,11 @@ class SchedulerService:
             self._items = [Schedule(**d) for d in json.loads(self.path.read_text("utf-8"))]
         except FileNotFoundError:
             pass
+        except ValueError:
+            # Keep the unreadable file for the user instead of overwriting it on the next save.
+            bad = self.path.with_suffix(".json.bad")
+            os.replace(self.path, bad)
+            logger.error(f"Unreadable schedules file moved to {bad}; starting with no schedules")
 
     def _save(self) -> None:
         self.path.parent.mkdir(parents=True, exist_ok=True)
@@ -155,7 +169,12 @@ class SchedulerService:
         for item in list(self._items):
             if not item.enabled or item.last_fired_minute == key:
                 continue
-            if not cron_matches(parse_cron(item.cron), minute):
+            try:
+                due = cron_matches(parse_cron(item.cron), minute)
+            except ValueError as exc:
+                item.last_error = str(exc)
+                continue
+            if not due:
                 continue
             item.last_fired_minute = key
             if item.last_session_id and any(

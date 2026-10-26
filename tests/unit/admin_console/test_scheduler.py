@@ -32,7 +32,7 @@ MON_0900 = datetime(2026, 10, 26, 9, 0)
 
 
 def test_parse_fields():
-    minute, hour, _, _, dow = parse_cron("*/15 9-11 * * 1,3")
+    minute, hour, _, _, dow, _, _ = parse_cron("*/15 9-11 * * 1,3")
     assert minute == {0, 15, 30, 45}
     assert hour == {9, 10, 11}
     assert dow == {1, 3}
@@ -58,6 +58,17 @@ def test_dom_or_dow_when_both_restricted():
     # Only dow restricted: AND with the wildcard dom.
     assert not cron_matches(parse_cron("0 9 * * 2"), MON_0900)
     assert cron_matches(parse_cron("0 9 * * 1"), MON_0900)
+    # A stepped "*" still counts as unrestricted: Mondays on odd days only.
+    assert not cron_matches(parse_cron("0 9 */2 * 1"), datetime(2026, 10, 26, 9, 0))
+    assert cron_matches(parse_cron("0 9 */2 * 1"), datetime(2026, 10, 19, 9, 0))
+
+
+def test_unreadable_file_is_moved_aside(tmp_path):
+    path = tmp_path / "schedules.json"
+    path.write_text("{not json", "utf-8")
+    svc = SchedulerService(path)
+    assert svc.list() == []
+    assert (tmp_path / "schedules.json.bad").read_text("utf-8") == "{not json"
 
 
 class FakeSubmit:
@@ -156,3 +167,14 @@ def test_add_validates_and_remove(svc):
     assert svc.remove(item.id) is True
     assert svc.remove(item.id) is False
     assert json.loads(svc.path.read_text()) == []
+
+
+@pytest.mark.asyncio
+async def test_bad_cron_in_file_does_not_block_other_schedules(svc):
+    svc.add("* * * * *", "good")
+    svc.list()[0].cron = "not a cron"
+    svc.add("* * * * *", "second")
+    submit = FakeSubmit()
+    await svc.tick(MON_0900, submit)
+    assert [r.goal for r in submit.requests] == ["second"]
+    assert "5 fields" in svc.list()[0].last_error

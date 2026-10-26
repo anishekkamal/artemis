@@ -25,6 +25,7 @@ from apps.admin_console.services import scheduler_service as scheduler_module
 from apps.admin_console.services.scheduler_service import (
     SchedulerService,
     cron_matches,
+    next_run,
     parse_cron,
 )
 
@@ -266,3 +267,52 @@ async def test_overlap_skip_does_not_wake(svc, calls, monkeypatch):
 
 def test_set_enabled_unknown_id(svc):
     assert svc.set_enabled("nope", False) is None
+
+
+def test_next_run():
+    friday_1000 = datetime(2026, 10, 30, 10, 0)
+    assert next_run(parse_cron("0 9 * * 1-5"), friday_1000) == datetime(2026, 11, 2, 9, 0)
+    assert next_run(parse_cron("*/15 * * * *"), datetime(2026, 10, 26, 10, 7)) == datetime(
+        2026, 10, 26, 10, 15
+    )
+    assert next_run(parse_cron("0 9 * * *"), MON_0900) == datetime(2026, 10, 27, 9, 0)
+    assert next_run(parse_cron("0 9 31 2 *"), MON_0900) is None
+
+
+@pytest.mark.asyncio
+async def test_run_options_pass_through_and_old_files_load(svc):
+    svc.add(
+        "0 9 * * *",
+        "g",
+        expected_output="a number",
+        enable_outputter=True,
+        verification_level="strict",
+        explorer_mode="pro",
+    )
+    submit = FakeSubmit()
+    await svc.tick(MON_0900, submit)
+    req = submit.requests[0]
+    assert (
+        req.expected_output,
+        req.enable_outputter,
+        req.verification_level,
+        req.explorer_mode,
+    ) == (
+        "a number",
+        True,
+        "strict",
+        "pro",
+    )
+    old = svc.path.parent / "old.json"
+    old.write_text(
+        '[{"id":"a","cron":"* * * * *","goal":"g","created_at":"2026-01-01T00:00:00"}]', "utf-8"
+    )
+    assert SchedulerService(old).list()[0].verification_level is None
+
+
+def test_view_adds_next_run_only_when_enabled(svc):
+    item = svc.add("0 9 * * *", "g")
+    assert svc.view(item)["next_run"]
+    svc.set_enabled(item.id, False)
+    assert svc.view(item)["next_run"] is None
+    assert "next_run" not in saved(svc)

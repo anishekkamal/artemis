@@ -28,19 +28,22 @@ class ScheduleRequest(BaseModel):
     goal: str
     profile: str = "flash"
     device_serial: str | None = None
+    expected_output: str | None = None
+    enable_outputter: bool | None = None
+    verification_level: str | None = None
+    explorer_mode: str | None = None
 
 
 @router.get("/api/schedules")
 async def list_schedules():
-    return {"schedules": [s.model_dump() for s in scheduler_service.list()]}
+    return {"schedules": [scheduler_service.view(s) for s in scheduler_service.list()]}
 
 
 @router.post("/api/schedules")
 async def create_schedule(request: ScheduleRequest):
     try:
-        return scheduler_service.add(
-            request.cron, request.goal, request.profile, request.device_serial
-        ).model_dump()
+        item = scheduler_service.add(**request.model_dump())
+        return scheduler_service.view(item)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
@@ -54,7 +57,7 @@ async def update_schedule(schedule_id: str, update: ScheduleUpdate):
     item = scheduler_service.set_enabled(schedule_id, update.enabled)
     if item is None:
         raise HTTPException(status_code=404, detail="Schedule not found")
-    return item.model_dump()
+    return scheduler_service.view(item)
 
 
 @router.delete("/api/schedules/{schedule_id}")

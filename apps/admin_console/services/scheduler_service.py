@@ -19,7 +19,7 @@ Local time, minute resolution. Minutes missed while the server was down are not 
 
 import asyncio
 from collections.abc import Awaitable, Callable
-from datetime import datetime
+from datetime import datetime, timedelta
 import json
 import os
 from pathlib import Path
@@ -107,6 +107,23 @@ def cron_matches(cron: Cron, dt: datetime) -> bool:
     return dom_ok and dow_ok
 
 
+def next_run(cron: Cron, after: datetime) -> datetime | None:
+    """First matching minute strictly after `after`, within 366 days, else None."""
+    t = after.replace(second=0, microsecond=0) + timedelta(minutes=1)
+    end = t + timedelta(days=366)
+    probe = (min(cron.hour), min(cron.minute))
+    while t < end:
+        if not cron_matches(cron, t.replace(hour=probe[0], minute=probe[1])):
+            t = t.replace(hour=0, minute=0) + timedelta(days=1)
+        elif t.hour not in cron.hour:
+            t = t.replace(minute=0) + timedelta(hours=1)
+        elif t.minute not in cron.minute:
+            t += timedelta(minutes=1)
+        else:
+            return t
+    return None
+
+
 class Schedule(BaseModel):
     id: str
     cron: str
@@ -118,6 +135,10 @@ class Schedule(BaseModel):
     last_fired_minute: str | None = None
     last_session_id: str | None = None
     last_error: str | None = None
+    expected_output: str | None = None
+    enable_outputter: bool | None = None
+    verification_level: str | None = None
+    explorer_mode: str | None = None
 
 
 class SchedulerService:
@@ -141,11 +162,31 @@ class SchedulerService:
         tmp.write_text(json.dumps([s.model_dump() for s in self._items], indent=2), "utf-8")
         os.replace(tmp, self.path)
 
+    @staticmethod
+    def view(item: Schedule) -> dict[str, Any]:
+        """API shape: the stored fields plus a computed next_run (never persisted)."""
+        nxt = None
+        if item.enabled:
+            try:
+                found = next_run(parse_cron(item.cron), datetime.now())
+                nxt = found.isoformat(timespec="minutes") if found else None
+            except ValueError:
+                pass
+        return {**item.model_dump(), "next_run": nxt}
+
     def list(self) -> list[Schedule]:
         return list(self._items)
 
     def add(
-        self, cron: str, goal: str, profile: str = "flash", device_serial: str | None = None
+        self,
+        cron: str,
+        goal: str,
+        profile: str = "flash",
+        device_serial: str | None = None,
+        expected_output: str | None = None,
+        enable_outputter: bool | None = None,
+        verification_level: str | None = None,
+        explorer_mode: str | None = None,
     ) -> Schedule:
         parse_cron(cron)
         if not goal.strip():
@@ -156,6 +197,10 @@ class SchedulerService:
             goal=goal,
             profile=profile,
             device_serial=device_serial,
+            expected_output=expected_output,
+            enable_outputter=enable_outputter,
+            verification_level=verification_level,
+            explorer_mode=explorer_mode,
             created_at=datetime.now().isoformat(timespec="seconds"),
         )
         self._items.append(item)
@@ -221,6 +266,10 @@ class SchedulerService:
                         goal=item.goal,
                         profile=item.profile,
                         device_serial=item.device_serial,
+                        expected_output=item.expected_output,
+                        enable_outputter=item.enable_outputter,
+                        verification_level=item.verification_level,
+                        explorer_mode=item.explorer_mode,
                         ingress="scheduler",
                     )
                 )

@@ -104,7 +104,7 @@ cd artemis
 
 > **Tip**: Opens `http://localhost:8000` in your default browser with a device connection wizard, live screen mirroring, prompt sandbox, and execution replays. You can also run directly from CLI: `uv run artemis run "Open Settings, find Battery and tell me current level" --profile flash`.
 
-**Scheduled runs.** Register a goal on a cron expression and the server enqueues it every time the cron matches:
+**Scheduled runs.** Register a goal on a cron expression and the server enqueues it every time the cron matches. You can also do this from the portal: write a task in the composer and press **Schedule**, then manage schedules in the **Scheduled Tasks** tab. From the CLI:
 
 ```bash
 uv run artemis schedule add "0 9 * * *" "Open Settings and report battery level" --profile flash

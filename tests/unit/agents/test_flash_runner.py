@@ -224,7 +224,7 @@ def test_ask_explorer_declaration_is_tier_agnostic(mock_context):
 def test_flash_binds_the_mac_file_tools(mock_context):
     with patch("artemis.controllers.unified_controller.get_driver"):
         names = [t.name for t in FlashRunner(mock_context, goal="Copy")._get_tools()]
-    assert {"list_mac_files", "copy_to_phone"} <= set(names)
+    assert {"list_mac_files", "read_mac_file", "copy_to_phone"} <= set(names)
 
 
 def test_flash_runner_screenshot_pruning(mock_context):

@@ -17,7 +17,7 @@ from types import SimpleNamespace
 import pytest
 
 from artemis.runtime import mac_access
-from artemis.tools.system.mac_files import copy_to_phone, list_mac_files
+from artemis.tools.system.mac_files import read_mac_file, copy_to_phone, list_mac_files
 
 
 @pytest.fixture
@@ -80,3 +80,11 @@ async def test_copy_falls_back_to_driver_device_and_reports_no_device(share, pus
 async def test_copy_refusal_is_text(share):
     out = await copy_to_phone.execute(ctx=CTX, MacPath=str(share / ".secret"))
     assert "Hidden" in out
+
+
+@pytest.mark.asyncio
+async def test_read_returns_text_and_refusals_are_failures(share):
+    from artemis.core.tool_failure import is_tool_failure
+
+    assert await read_mac_file.execute(ctx=CTX, Path=str(share / "a.txt")) == "hi"
+    assert is_tool_failure(await read_mac_file.execute(ctx=CTX, Path=str(share / ".secret")))

@@ -124,6 +124,7 @@ BACKEND_INDEPENDENT_TOOLS: frozenset[str] = frozenset(
         "run_adb_command",
         "manage_task",
         "list_mac_files",
+        "read_mac_file",
         "copy_to_phone",
         "analyze_task_output",
         "search_history",

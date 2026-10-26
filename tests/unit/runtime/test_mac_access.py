@@ -264,3 +264,20 @@ def test_removed_root_that_no_longer_exists_can_still_be_removed(tmp_path):
     m.add_root(str(gone), store)
     gone.rmdir()
     assert m.remove_root(str(gone), store) is True
+
+
+def test_read_text_returns_contents_and_refuses_the_rest(share, monkeypatch):
+    roots = [str(share)]
+    assert m.read_text(str(share / "a.txt"), roots) == "hi"
+    (share / "bin.dat").write_bytes(b"\xff\xfe\x00")
+    for bad, msg in (
+        (share / "bin.dat", "not a text file"),
+        (share / "sub", "Not a file"),
+        (share / ".secret", "Hidden"),
+        (share.parent / "outside.txt", "outside"),
+    ):
+        with pytest.raises(m.MacAccessError, match=msg):
+            m.read_text(str(bad), roots)
+    monkeypatch.setattr(m, "MAX_READ_BYTES", 1)
+    with pytest.raises(m.MacAccessError, match="too big"):
+        m.read_text(str(share / "a.txt"), roots)

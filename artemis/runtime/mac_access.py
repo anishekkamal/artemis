@@ -38,6 +38,7 @@ logger = get_logger(__name__)
 
 MAX_COPY_BYTES = 500 * 1024 * 1024
 MAX_COPY_FILES = 1000
+MAX_READ_BYTES = 200 * 1024
 DEFAULT_PHONE_FOLDER = "/sdcard/Download"
 _PHONE_ROOTS = ("/sdcard", "/storage/emulated/0")
 _SCAN_TIMEOUT_SECONDS = 15
@@ -196,6 +197,19 @@ def list_files(path: str | None, roots: list[str], limit: int = 200) -> list[dic
             continue
     entries.sort(key=lambda e: e["modified"], reverse=True)
     return entries[:limit]
+
+
+def read_text(path: str, roots: list[str]) -> str:
+    """Returns a shared text file's contents, for captions, notes and posting kits."""
+    source = resolve_allowed(path, roots)
+    if not source.is_file():
+        raise MacAccessError(f"Not a file: {path}")
+    if source.stat().st_size > MAX_READ_BYTES:
+        raise MacAccessError(f"{source.name} is over {MAX_READ_BYTES // 1024} KB; too big to read.")
+    try:
+        return source.read_text("utf-8")
+    except UnicodeDecodeError as exc:
+        raise MacAccessError(f"{source.name} is not a text file.") from exc
 
 
 def _validate_phone_folder(folder: str) -> str:

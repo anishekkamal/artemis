@@ -68,6 +68,7 @@ DEFERRING_TOOLS = {
     "run_adb_command",
     "manage_task",
     "list_mac_files",
+    "read_mac_file",
     "copy_to_phone",
     "analyze_task_output",
     "ask_explorer",

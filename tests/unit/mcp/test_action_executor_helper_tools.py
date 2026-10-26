@@ -45,6 +45,7 @@ def test_helper_tools_are_not_device_actions():
         "replay_steps",
         "get_step_screenshot",
         "list_mac_files",
+        "read_mac_file",
         "copy_to_phone",
     } <= AGENT_TOOL_NAMES
     assert not (AGENT_TOOL_NAMES & executor.action_tool_names)

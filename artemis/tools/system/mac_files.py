@@ -81,6 +81,34 @@ class ListMacFilesTool(ArtemisTool):
         return "\n".join(lines)
 
 
+class ReadMacFileArgs(BaseModel):
+    """Arguments schema for read_mac_file."""
+
+    Path: str = Field(..., description="Absolute path of a text file inside a shared Mac folder.")
+
+
+class ReadMacFileTool(ArtemisTool):
+    def __init__(self):
+        super().__init__(
+            name="read_mac_file",
+            description=(
+                "[MAC] Returns the text of a file in a shared Mac folder (Markdown, notes,"
+                " captions, CSV; up to 200 KB). Use it to read instructions or captions"
+                " before acting on the phone. " + _READ_ONLY
+            ),
+            args_schema=ReadMacFileArgs,
+            category="system",
+        )
+
+    async def execute(
+        self, driver: Any = None, ctx: ArtemisContext | None = None, Path: str = "", **kwargs: Any
+    ) -> str:
+        try:
+            return mac_access.read_text(Path, mac_access.load_roots())
+        except MacAccessError as exc:
+            return ToolFailure(str(exc))
+
+
 class CopyToPhoneArgs(BaseModel):
     """Arguments schema for copy_to_phone."""
 
@@ -138,12 +166,17 @@ class CopyToPhoneTool(ArtemisTool):
 
 
 list_mac_files = ListMacFilesTool()
+read_mac_file = ReadMacFileTool()
 copy_to_phone = CopyToPhoneTool()
-MAC_FILE_TOOLS = {t.name: t for t in (list_mac_files, copy_to_phone)}
+MAC_FILE_TOOLS = {t.name: t for t in (list_mac_files, read_mac_file, copy_to_phone)}
 
 
 def get_list_mac_files_tool(ctx: ArtemisContext) -> BaseTool:
     return trace_langchain_tool(list_mac_files.to_langchain_tool(ctx), ctx)
+
+
+def get_read_mac_file_tool(ctx: ArtemisContext) -> BaseTool:
+    return trace_langchain_tool(read_mac_file.to_langchain_tool(ctx), ctx)
 
 
 def get_copy_to_phone_tool(ctx: ArtemisContext) -> BaseTool:
@@ -154,6 +187,12 @@ list_mac_files_wrapper = ToolWrapper(
     tool_fn_getter=get_list_mac_files_tool,
     on_success_fn=lambda output: output,
     on_failure_fn=lambda err: f"Listing Mac files failed: {err}",
+)
+
+read_mac_file_wrapper = ToolWrapper(
+    tool_fn_getter=get_read_mac_file_tool,
+    on_success_fn=lambda output: output,
+    on_failure_fn=lambda err: f"Reading the Mac file failed: {err}",
 )
 
 copy_to_phone_wrapper = ToolWrapper(

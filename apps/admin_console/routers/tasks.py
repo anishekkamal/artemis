@@ -14,6 +14,7 @@
 
 import asyncio
 from contextlib import suppress
+from datetime import datetime
 import json
 from typing import Any
 from fastapi import APIRouter, HTTPException, Request
@@ -79,6 +80,10 @@ async def run_task(request: RunRequest):
             status_code=400,
             detail="Either 'goal' or 'goals' list must be provided.",
         )
+    # The agent has no clock, so a goal can name {date} to get the day it runs on.
+    now = datetime.now()
+    today = f"{now:%A, %B} {now.day}, {now.year}"
+    incoming_goals = [g.replace("{date}", today) for g in incoming_goals]
 
     # Idempotent SDK retries must never re-run device readiness checks. A task
     # can hold the device while its admission response is lost in transit; in

@@ -123,6 +123,8 @@ BACKEND_INDEPENDENT_TOOLS: frozenset[str] = frozenset(
         "video_analyzer",
         "run_adb_command",
         "manage_task",
+        "list_mac_files",
+        "copy_to_phone",
         "analyze_task_output",
         "search_history",
         "replay_steps",

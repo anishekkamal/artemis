@@ -70,6 +70,7 @@ from artemis.tools.command_tool import (
 from artemis.tools.diagnostic_tool import ask_diagnoser_wrapper
 from artemis.tools.explorer_tool import ask_explorer_wrapper
 from artemis.tools.index import get_tools_from_wrappers
+from artemis.tools.system.mac_files import copy_to_phone_wrapper, list_mac_files_wrapper
 from artemis.tools.scratchpad import (
     append_note_wrapper,
     list_notes_wrapper,
@@ -981,6 +982,8 @@ async def get_graph(ctx: ArtemisContext) -> CompiledStateGraph:
         ask_diagnoser_wrapper,
         run_adb_command_wrapper,
         manage_task_wrapper,
+        list_mac_files_wrapper,
+        copy_to_phone_wrapper,
         ask_explorer_wrapper,
         *HISTORY_TOOL_WRAPPERS,
     ]

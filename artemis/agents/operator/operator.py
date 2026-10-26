@@ -67,6 +67,8 @@ DEFERRING_TOOLS = {
     "get_step_screenshot",
     "run_adb_command",
     "manage_task",
+    "list_mac_files",
+    "copy_to_phone",
     "analyze_task_output",
     "ask_explorer",
 }

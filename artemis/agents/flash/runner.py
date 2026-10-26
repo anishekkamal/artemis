@@ -88,6 +88,7 @@ from artemis.services.llm import (
     invoke_llm_with_timeout_message,
 )
 from artemis.tools.history import history_tool_declarations
+from artemis.tools.system.mac_files import MAC_FILE_TOOLS
 from artemis.tools.tool_wrapper import tool_result_messages
 from artemis.utils.coordinates import (
     COORDINATE_SPACE_KEY,
@@ -207,6 +208,7 @@ class FlashRunner:
         # declared from the very same args schemas the LangChain tools bind
         # (same availability gates: a DataEngine session, recall config).
         tools.extend(history_tool_declarations(self.ctx))
+        tools.extend(t.to_tool_declaration() for t in MAC_FILE_TOOLS.values())
         if self._video_tools_enabled():
             from artemis.tools.video_tool import VIDEO_ANALYZER_TOOL
 

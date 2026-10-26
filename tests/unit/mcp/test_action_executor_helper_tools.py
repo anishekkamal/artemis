@@ -44,6 +44,8 @@ def test_helper_tools_are_not_device_actions():
         "search_history",
         "replay_steps",
         "get_step_screenshot",
+        "list_mac_files",
+        "copy_to_phone",
     } <= AGENT_TOOL_NAMES
     assert not (AGENT_TOOL_NAMES & executor.action_tool_names)
 
@@ -299,3 +301,18 @@ async def test_history_tools_dispatch_to_the_real_shared_instances():
             "no active execution history" in result.text_summary
             or "no execution history" in result.text_summary
         )
+
+
+@pytest.mark.asyncio
+async def test_mac_file_tools_run_agent_side_and_refusals_are_errors(tmp_path, monkeypatch):
+    from artemis.runtime import mac_access
+
+    (tmp_path / "a.txt").write_text("hi")
+    monkeypatch.setattr(mac_access, "load_roots", lambda store=None: [str(tmp_path)])
+    executor = _make_executor(agent_name="flash")
+
+    listed = await executor.execute("list_mac_files", {"Path": str(tmp_path)}, "tc1", _state())
+    assert listed.status == "success" and "a.txt" in listed.text_summary
+
+    refused = await executor.execute("copy_to_phone", {"MacPath": "/etc/hosts"}, "tc2", _state())
+    assert refused.status == "error" and "outside the shared Mac folders" in refused.text_summary

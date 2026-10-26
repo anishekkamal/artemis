@@ -21,6 +21,7 @@ from langchain_core.tools import BaseTool
 from pydantic import BaseModel, Field
 
 from artemis.context import ArtemisContext
+from artemis.core.tool_failure import ToolFailure
 from artemis.data_engine.trace import trace_langchain_tool
 from artemis.runtime import mac_access
 from artemis.runtime.mac_access import MacAccessError
@@ -69,7 +70,7 @@ class ListMacFilesTool(ArtemisTool):
         try:
             entries = mac_access.list_files(Path, mac_access.load_roots())
         except MacAccessError as exc:
-            return str(exc)
+            return ToolFailure(str(exc))
         if not entries:
             return "The folder is empty (hidden files are not listed)."
         lines = [
@@ -124,19 +125,20 @@ class CopyToPhoneTool(ArtemisTool):
     ) -> str:
         device_id = _device_id(driver, ctx)
         if not device_id:
-            return "No phone is connected, so the file cannot be copied."
+            return ToolFailure("No phone is connected, so the file cannot be copied.")
         try:
             phone_path, count = await asyncio.to_thread(
                 mac_access.push_to_phone, device_id, MacPath, PhoneFolder
             )
         except MacAccessError as exc:
-            return str(exc)
+            return ToolFailure(str(exc))
         files = "1 file" if count == 1 else f"{count} files"
         return f"Copied {files} to the phone: {phone_path}"
 
 
 list_mac_files = ListMacFilesTool()
 copy_to_phone = CopyToPhoneTool()
+MAC_FILE_TOOLS = {t.name: t for t in (list_mac_files, copy_to_phone)}
 
 
 def get_list_mac_files_tool(ctx: ArtemisContext) -> BaseTool:

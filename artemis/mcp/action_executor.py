@@ -50,6 +50,7 @@ from artemis.agents.validator.tool_declarations import (
     normalize_coordinate_target,
 )
 from artemis.tools.history import HISTORY_TOOL_NAMES, history_tool_by_name
+from artemis.tools.system.mac_files import MAC_FILE_TOOLS
 from artemis.tools.tool_wrapper import split_multimodal_result
 from artemis.utils.coordinates import (
     compute_smart_swipe_coordinates,
@@ -71,7 +72,9 @@ __all__ = ["McpActionExecutor"]
 
 #: Non-device tools executed agent-side (never behind the action server).
 AGENT_TOOL_NAMES: frozenset[str] = (
-    frozenset({"read_note", "list_notes", "ask_explorer", "video_analyzer"}) | HISTORY_TOOL_NAMES
+    frozenset({"read_note", "list_notes", "ask_explorer", "video_analyzer"})
+    | HISTORY_TOOL_NAMES
+    | frozenset(MAC_FILE_TOOLS)
 )
 
 #: Actions whose ``target`` is a single point: an element index or an [x, y] pair.
@@ -647,7 +650,7 @@ class McpActionExecutor:
                     args.get("time_description") or args.get("TimeDescription") or "",
                     args.get("purpose") or args.get("Purpose") or "",
                 )
-            elif raw_name in HISTORY_TOOL_NAMES:
+            elif raw_name in HISTORY_TOOL_NAMES or raw_name in MAC_FILE_TOOLS:
                 text, blocks = await self._history_tool(raw_name, args)
             else:
                 text, ok = await self._ask_explorer(
@@ -698,13 +701,13 @@ class McpActionExecutor:
     async def _history_tool(
         self, raw_name: str, args: dict[str, Any]
     ) -> tuple[str, list[dict] | None]:
-        """Runs one of the shared history tools (the same instances the Pro
-        agents bind), dispatched generically by name.
+        """Runs one of the shared history or Mac file tools (the same instances
+        the Pro agents bind), dispatched generically by name.
 
         Returns the text answer and, for a screenshot, the multimodal content
         blocks the tool produced.
         """
-        tool = history_tool_by_name(raw_name)
+        tool = history_tool_by_name(raw_name) or MAC_FILE_TOOLS.get(raw_name)
         if tool is None:
             return ToolFailure(f"Error: Tool '{raw_name}' not supported."), None
         accepted = {k: v for k, v in args.items() if k in tool.args_schema.model_fields}
